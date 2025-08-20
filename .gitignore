@@ -1,0 +1,30 @@
+# .NET build artifacts
+**/bin/
+**/obj/
+*.user
+*.suo
+*.vspscc
+*.vssscc
+*.dbmdl
+*.pdb
+
+# Visual Studio files
+.vs/
+*.ncrunch*
+*.ndoc
+*.sln.docstates
+
+# Node.js/React build artifacts
+frontend/activity-explorer-ui/node_modules/
+frontend/activity-explorer-ui/build/
+frontend/activity-explorer-ui/.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Others
+*.orig
