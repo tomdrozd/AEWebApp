@@ -253,8 +253,8 @@ function App() {
           <Box sx={{ my: 4 }}>
             {/* Filter Controls */}
             <Paper sx={{ p: 2, mb: 2 }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={3}>
+              <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <DatePicker
                     label="Start Date"
                     value={filter.startDate || null}
@@ -262,7 +262,7 @@ function App() {
                     slotProps={{ textField: { fullWidth: true } }}
                   />
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <DatePicker
                     label="End Date"
                     value={filter.endDate || null}
@@ -270,7 +270,7 @@ function App() {
                     slotProps={{ textField: { fullWidth: true } }}
                   />
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     fullWidth
                     label="Search User"
@@ -278,7 +278,7 @@ function App() {
                     onChange={(e) => setFilter({ ...filter, userSearch: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <Button 
                     variant="outlined" 
                     onClick={() => setFilter({ ...filter, startDate: undefined, endDate: undefined, userSearch: '' })}

@@ -107,8 +107,8 @@ const ActivityDetailPanel: React.FC<ActivityDetailPanelProps> = ({ activity, ope
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{
-        sx: { width: { xs: '100%', sm: '600px', md: '700px' } }
+      slotProps={{
+        paper: { sx: { width: { xs: '100%', sm: '600px', md: '700px' } } }
       }}
     >
       <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
