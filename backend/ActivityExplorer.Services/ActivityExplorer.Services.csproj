@@ -6,9 +6,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.0" />
-    <PackageReference Include="System.Management.Automation" Version="7.4.0" />
-    <PackageReference Include="Microsoft.WSMan.Management" Version="7.4.0" />
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.0" />
+    <PackageReference Include="System.Management.Automation" Version="7.5.0" />
+    <PackageReference Include="Microsoft.WSMan.Management" Version="7.5.0" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.74.1" />
     <PackageReference Include="Azure.Identity" Version="1.11.4" />
     <PackageReference Include="Azure.Core" Version="1.39.0" />
@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
