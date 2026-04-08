@@ -55,8 +55,8 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = scope.ServiceProvider.GetRequiredService<ActivityContext>();
-        context.Database.EnsureCreated();
-        Console.WriteLine("Database created/verified successfully");
+        context.Database.Migrate();
+        Console.WriteLine("Database migrated successfully");
     }
     catch (Exception ex)
     {
