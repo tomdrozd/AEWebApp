@@ -149,6 +149,20 @@ namespace ActivityExplorer.Services
                     $"PowerShell script '{scriptName}' produced no output on stdout");
             }
 
+            // Log raw stdout for debugging (first 200 chars)
+            _logger.LogDebug("Raw stdout from {Script} (first 200 chars): {Output}",
+                scriptName, stdout.Substring(0, Math.Min(200, stdout.Length)));
+
+            // Strip any non-JSON prefix (e.g. module import messages leaked to stdout)
+            var jsonStart = stdout.IndexOfAny(new[] { '{', '[' });
+            if (jsonStart > 0)
+            {
+                var skipped = stdout.Substring(0, jsonStart);
+                _logger.LogWarning("Stripped non-JSON prefix from {Script} stdout: {Prefix}",
+                    scriptName, skipped.Trim());
+                stdout = stdout.Substring(jsonStart);
+            }
+
             try
             {
                 var result = JsonSerializer.Deserialize<T>(stdout, new JsonSerializerOptions

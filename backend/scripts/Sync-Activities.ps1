@@ -36,7 +36,7 @@ $pageNumber = 0
 try {
     do {
         $pageNumber++
-        Write-Host "Fetching page $pageNumber..." -ForegroundColor Gray
+        Write-Host "Fetching page ${pageNumber}..." -ForegroundColor Gray
 
         $params = @{
             StartTime    = $StartTime
@@ -58,7 +58,7 @@ try {
         $result = Export-ActivityExplorerData @params
 
         if (-not $result) {
-            Write-Host "Page $pageNumber: No results returned." -ForegroundColor Yellow
+            Write-Host "Page ${pageNumber}: No results returned." -ForegroundColor Yellow
             break
         }
 
@@ -72,7 +72,7 @@ try {
         $lastPage    = [bool]($result.LastPage ?? $true)
         $pageCookie  = $result.WaterMark
 
-        Write-Host "Page $pageNumber: $recordCount records (total: $totalCount, lastPage: $lastPage)" -ForegroundColor Gray
+        Write-Host "Page ${pageNumber}: ${recordCount} records (total: ${totalCount}, lastPage: ${lastPage})" -ForegroundColor Gray
 
         if ($result.ResultData) {
             $activities = $result.ResultData | ConvertFrom-Json -AsHashtable
