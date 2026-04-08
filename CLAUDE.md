@@ -31,13 +31,13 @@ dotnet ef database update
 # Install dependencies and start frontend (from root directory)
 cd frontend/activity-explorer-ui
 npm install
-npm start
+npm run dev
 
 # Build for production
 npm run build
 
-# Run tests
-npm test
+# Preview production build
+npm run preview
 ```
 
 ### Full Application Startup
@@ -45,13 +45,13 @@ npm test
 # Terminal 1 - Backend
 cd backend/ActivityExplorer.API && dotnet run
 
-# Terminal 2 - Frontend  
-cd frontend/activity-explorer-ui && npm start
+# Terminal 2 - Frontend (Vite dev server)
+cd frontend/activity-explorer-ui && npm run dev
 ```
 
 ## Architecture Overview
 
-### Backend Architecture (.NET Core 8.0)
+### Backend Architecture (.NET 9.0)
 
 The backend follows a layered architecture with clear separation of concerns:
 
@@ -75,14 +75,15 @@ The backend follows a layered architecture with clear separation of concerns:
    - Uses System.Management.Automation for PowerShell commands
    - Certificate-based authentication with Microsoft 365 via Connect-IPPSSession
 
-### Frontend Architecture (React TypeScript)
+### Frontend Architecture (React 19 + TypeScript 5)
 
-Single-page application with Material-UI components:
+Single-page application built with Vite and Material-UI 9:
 
 - **src/App.tsx** - Main component with table, filtering, and sync functionality
 - **src/services/api.ts** - API service layer using axios
-- Uses Material-UI for UI components
-- LocalizationProvider for date handling
+- **src/components/ActivityDetailPanel.tsx** - Detail flyout panel
+- Uses MUI 9 (Grid with `size` prop, Drawer with `slotProps`), date-fns 4
+- Bundled with Vite (replaced CRA)
 
 ### PowerShell Integration
 
@@ -100,10 +101,11 @@ The application uses PowerShell to fetch data from Microsoft Purview:
 
 ### Database Schema
 
-SQL Server database with automatic creation on startup:
+SQL Server database managed via EF Core Migrations:
 - **Activities** table - Stores audit log entries with indexes on Timestamp, UserId, Operation, Workload
 - **SavedFilters** table - Stores user filter presets (prepared but not fully implemented)
 - Uses LocalDB by default (no setup required)
+- Schema changes via `dotnet ef migrations add` (not EnsureCreated)
 
 ## Configuration Requirements
 
@@ -126,19 +128,19 @@ Before running, update these configurations:
 
 ## Development Workflow
 
-1. The database is created automatically on first run via `context.Database.EnsureCreated()`
+1. The database is created/migrated automatically on first run via `context.Database.Migrate()`
 2. Certificate-based authentication connects automatically (no manual input needed)
 3. Frontend expects backend on http://localhost:5000 (CORS configured)
-4. Swagger UI available at http://localhost:5000/swagger for API testing
+4. Scalar API Reference available at http://localhost:5000/scalar/v1 for API testing
+5. OpenAPI document at http://localhost:5000/openapi/v1.json
 
 ## Latest Updates (April 2026)
 
-### Package Compatibility Fix
-- **Issue**: Exchange Online Management module 3.9.2 bundles its own DLLs (Microsoft.Identity.Client 4.74.1, System.IdentityModel.Tokens.Jwt 8.14.0) which conflict with older NuGet versions in the backend
-- **Fix**: Upgraded NuGet packages in ActivityExplorer.Services.csproj to match EXO module versions:
-  - `Microsoft.Identity.Client` 4.66.1 → **4.74.1**
-  - `System.IdentityModel.Tokens.Jwt` and all `Microsoft.IdentityModel.*` 8.0.1 → **8.14.0**
-- **Root cause**: PowerShell runs in-process, so EXO module DLLs must match backend assembly versions
+### Phase 1: Framework Upgrades
+- **Backend**: .NET 8 → 9, PowerShell SDK 7.4 → 7.5, Swashbuckle → built-in OpenAPI + Scalar UI
+- **Database**: `EnsureCreated()` → EF Core Migrations
+- **Frontend**: CRA → Vite, TypeScript 4.9 → 5.6, MUI 5 → 9, React 18 → 19, date-fns 2 → 4
+- **Package fix**: Aligned NuGet versions with EXO module 3.9.2 DLLs (MSAL 4.74.1, IdentityModel 8.14.0)
 
 ### August 2025 Features
 1. **Complete Data Capture**: All 29 fields from Export-ActivityExplorerData are now stored
@@ -170,12 +172,11 @@ Before running, update these configurations:
 - **Key**: Access properties via `psObject.Properties["PropertyName"]?.Value` not `BaseObject`
 
 ### Database Schema Updates
-- **Issue**: "Invalid column name" errors after adding new fields
-- **Cause**: Database created with old schema before model updates
-- **Solution**: 
-  1. Drop existing database: `sqlcmd -S "(localdb)\mssqllocaldb" -Q "DROP DATABASE ActivityExplorer"`
-  2. Rebuild backend: `dotnet build --no-incremental`
-  3. Restart application to recreate database with new schema
+- **Process**: Use EF Core Migrations for schema changes:
+  1. `cd backend/ActivityExplorer.API`
+  2. `dotnet ef migrations add MigrationName --project ../ActivityExplorer.Data`
+  3. Restart application (auto-applies via `Database.Migrate()`)
+- **For clean reset**: Drop DB and restart: `sqlcmd -S "(localdb)\mssqllocaldb" -Q "DROP DATABASE ActivityExplorer"`
 
 ## Certificate Configuration
 

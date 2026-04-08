@@ -38,7 +38,7 @@ A comprehensive web application that replicates Microsoft Purview's Activity Exp
 ## Prerequisites
 
 - **Windows** with PowerShell 7+
-- **.NET 8.0 SDK** or later
+- **.NET 9.0 SDK** or later
 - **Node.js 18+** and npm
 - **SQL Server** (LocalDB, Express, or Developer Edition)
 - **Exchange Online Management Module** installed:
@@ -100,23 +100,23 @@ dotnet run
 
 The API will be available at:
 - API: http://localhost:5000
-- Swagger UI: http://localhost:5000/swagger
+- Scalar API Reference: http://localhost:5000/scalar/v1
+- OpenAPI document: http://localhost:5000/openapi/v1.json
 
-Database will be created automatically on first run.
+Database will be created/migrated automatically on first run.
 
 ### 5. Install Frontend Dependencies
 
 ```bash
 cd frontend/activity-explorer-ui
 npm install
-npm install @mui/icons-material@^5.14.0 --save
 ```
 
 ### 6. Start the Frontend
 
 ```bash
 cd frontend/activity-explorer-ui
-npm start
+npm run dev
 ```
 
 The React app will open at http://localhost:3000
@@ -162,17 +162,17 @@ The application uses **Certificate-based Authentication**:
 ## Troubleshooting
 
 ### Database Schema Issues
-**Error**: "Invalid column name 'RecordIdentity'"
-- **Cause**: Database has old schema after model updates
-- **Solution**:
+**Error**: "Invalid column name" after model changes
+- **Solution**: Create a new migration and restart:
+  ```bash
+  cd backend/ActivityExplorer.API
+  dotnet ef migrations add DescriptiveName --project ../ActivityExplorer.Data
+  # Restart backend - migration auto-applies
+  ```
+- **For clean reset**:
   ```powershell
-  # Stop the backend
-  # Drop the database
   sqlcmd -S "(localdb)\mssqllocaldb" -Q "DROP DATABASE ActivityExplorer"
-  # Rebuild backend
-  cd backend
-  dotnet build --no-incremental
-  # Restart backend - database will be recreated
+  # Restart backend - recreates DB with all migrations
   ```
 
 ### Certificate Authentication Errors
@@ -205,7 +205,7 @@ The application uses **Certificate-based Authentication**:
 
 ## Development Notes
 
-- Database is created automatically on first run using Entity Framework (`EnsureCreated()`)
+- Database is created/migrated automatically on first run using EF Core Migrations
 - Certificate-based authentication for secure, automated connections
 - Data is fetched from the last 30 days by default
 - All 29+ fields from Export-ActivityExplorerData are captured
@@ -215,8 +215,8 @@ The application uses **Certificate-based Authentication**:
 
 ## Architecture
 
-- **Backend**: .NET Core 8.0 with Entity Framework Core
-- **Frontend**: React 18 with TypeScript and Material-UI
+- **Backend**: .NET 9.0 with Entity Framework Core 9
+- **Frontend**: React 19 with TypeScript 5, Vite, and Material-UI 9
 - **Database**: SQL Server LocalDB
 - **Authentication**: Certificate-based via Exchange Online PowerShell
 - **Data Flow**: PowerShell → .NET Service → SQL Database → REST API → React UI
