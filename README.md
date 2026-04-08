@@ -49,7 +49,7 @@ A comprehensive web application that replicates Microsoft Purview's Activity Exp
 ## Project Structure
 
 ```
-ClaudeWebApp1/
+AEWebApp/
 ├── backend/                      # .NET Core Backend
 │   ├── ActivityExplorer.API/     # Web API
 │   ├── ActivityExplorer.Core/    # Domain models
@@ -205,12 +205,13 @@ The application uses **Certificate-based Authentication**:
 
 ## Development Notes
 
-- Database is created automatically on first run using Entity Framework
+- Database is created automatically on first run using Entity Framework (`EnsureCreated()`)
 - Certificate-based authentication for secure, automated connections
 - Data is fetched from the last 30 days by default
 - All 29+ fields from Export-ActivityExplorerData are captured
 - Complex fields (Email, Policy info) stored as JSON
 - SQL Server LocalDB requires no additional setup
+- Certificate validity: check expiry with `Get-ChildItem Cert:\CurrentUser\My\<thumbprint> | Select NotAfter`
 
 ## Architecture
 
@@ -219,6 +220,17 @@ The application uses **Certificate-based Authentication**:
 - **Database**: SQL Server LocalDB
 - **Authentication**: Certificate-based via Exchange Online PowerShell
 - **Data Flow**: PowerShell → .NET Service → SQL Database → REST API → React UI
+
+## Important: Package Version Compatibility
+
+The Exchange Online Management PowerShell module runs in-process and bundles its own DLLs. The NuGet packages in the backend **must match** the DLL versions in the EXO module to avoid assembly loading errors.
+
+Current compatible versions (EXO module 3.9.2):
+- `Microsoft.Identity.Client` → **4.74.1**
+- `System.IdentityModel.Tokens.Jwt` → **8.14.0**
+- `Microsoft.IdentityModel.*` → **8.14.0**
+
+When upgrading the EXO module, check DLL versions in `<module path>/netCore/` and update NuGet packages accordingly.
 
 ## Future Enhancements
 

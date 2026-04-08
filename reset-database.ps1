@@ -6,7 +6,7 @@ Write-Host "=======================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Database name
-$databaseName = "ActivityExplorerDB"
+$databaseName = "ActivityExplorer"
 $connectionString = "Server=(localdb)\mssqllocaldb;Database=$databaseName;Trusted_Connection=True;"
 
 Write-Host "This script will:" -ForegroundColor Yellow

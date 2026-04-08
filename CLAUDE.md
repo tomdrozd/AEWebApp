@@ -73,7 +73,7 @@ The backend follows a layered architecture with clear separation of concerns:
 4. **ActivityExplorer.Services** - Business logic layer
    - PurviewService handles PowerShell integration
    - Uses System.Management.Automation for PowerShell commands
-   - Implements interactive authentication with Microsoft 365
+   - Certificate-based authentication with Microsoft 365 via Connect-IPPSSession
 
 ### Frontend Architecture (React TypeScript)
 
@@ -89,13 +89,13 @@ Single-page application with Material-UI components:
 The application uses PowerShell to fetch data from Microsoft Purview:
 
 1. **Authentication Flow**:
-   - Interactive authentication by default (prompts for credentials)
-   - Connects using `Connect-IPPSSession` command
-   - Supports future expansion to certificate/service principal auth
+   - Certificate-based authentication (CBA) via Azure AD app registration
+   - Connects using `Connect-IPPSSession` (Security & Compliance PowerShell)
+   - Requires Exchange Online Management module 3.9.2+
 
 2. **Data Fetching**:
-   - Uses `Search-UnifiedAuditLog` to retrieve audit logs
-   - Fetches last 7 days of data by default
+   - Uses `Export-ActivityExplorerData` to retrieve activity data
+   - Fetches last 30 days of data by default
    - Processes PSObject results into Activity entities
 
 ### Database Schema
@@ -127,26 +127,33 @@ Before running, update these configurations:
 ## Development Workflow
 
 1. The database is created automatically on first run via `context.Database.EnsureCreated()`
-2. Interactive authentication requires manual credential input for each sync
+2. Certificate-based authentication connects automatically (no manual input needed)
 3. Frontend expects backend on http://localhost:5000 (CORS configured)
 4. Swagger UI available at http://localhost:5000/swagger for API testing
 
-## Latest Updates (August 2025)
+## Latest Updates (April 2026)
 
-### New Features
+### Package Compatibility Fix
+- **Issue**: Exchange Online Management module 3.9.2 bundles its own DLLs (Microsoft.Identity.Client 4.74.1, System.IdentityModel.Tokens.Jwt 8.14.0) which conflict with older NuGet versions in the backend
+- **Fix**: Upgraded NuGet packages in ActivityExplorer.Services.csproj to match EXO module versions:
+  - `Microsoft.Identity.Client` 4.66.1 → **4.74.1**
+  - `System.IdentityModel.Tokens.Jwt` and all `Microsoft.IdentityModel.*` 8.0.1 → **8.14.0**
+- **Root cause**: PowerShell runs in-process, so EXO module DLLs must match backend assembly versions
+
+### August 2025 Features
 1. **Complete Data Capture**: All 29 fields from Export-ActivityExplorerData are now stored
 2. **Activity Detail Flyout Panel**: Click any activity row to view all fields in a side panel
 3. **Column Analysis API**: Endpoint to discover available columns from Purview
 4. **Enhanced Data Model**: Support for sensitivity labels, DLP policies, and complex metadata
-
-### UI Improvements
-- Clickable table rows with hover effects
-- Detailed side panel with organized sections
-- Copy-to-clipboard functionality for important fields
-- JSON data viewer with expandable accordions
-- Smart formatting for file sizes and dates
+5. **UI Improvements**: Clickable rows, detail side panel, copy-to-clipboard, JSON viewer, smart formatting
 
 ## Known Issues & Fixes
+
+### Assembly Version Conflicts with EXO Module
+- **Issue**: `Could not load file or assembly 'Microsoft.Identity.Client'` (or `System.IdentityModel.Tokens.Jwt`) at runtime
+- **Cause**: Exchange Online Management module loads its own DLLs in-process; versions must match backend NuGet packages
+- **Solution**: Check DLL versions in `<EXO module path>/netCore/` and align NuGet packages in ActivityExplorer.Services.csproj
+- **Important**: When upgrading the EXO module, always verify and update matching NuGet package versions
 
 ### Certificate Authentication
 - **Issue**: "Klíč není platný pro použití v zadaném stavu" (The key is not valid for use in the specified state)
