@@ -71,9 +71,15 @@ The backend follows a layered architecture with clear separation of concerns:
    - Uses SQL Server with LocalDB by default
 
 4. **ActivityExplorer.Services** - Business logic layer
-   - PurviewService handles PowerShell integration
-   - Uses System.Management.Automation for PowerShell commands
+   - PurviewService orchestrates PowerShell script execution
+   - PowerShellRunner executes `pwsh.exe` out-of-process (PS1 scripts return JSON on stdout)
+   - ActivitySyncService handles fetch + deduplicate + save workflow
    - Certificate-based authentication with Microsoft 365 via Connect-IPPSSession
+
+5. **ActivityExplorer.SyncFunction** - Azure Function (isolated worker, .NET 9)
+   - Timer trigger (every 6 hours) for scheduled sync
+   - HTTP trigger for on-demand sync
+   - Shares ActivitySyncService with API project
 
 ### Frontend Architecture (React 19 + TypeScript 5)
 
@@ -85,19 +91,22 @@ Single-page application built with Vite and Material-UI 9:
 - Uses MUI 9 (Grid with `size` prop, Drawer with `slotProps`), date-fns 4
 - Bundled with Vite (replaced CRA)
 
-### PowerShell Integration
+### PowerShell Integration (Out-of-Process)
 
-The application uses PowerShell to fetch data from Microsoft Purview:
+PowerShell runs out-of-process via `pwsh.exe` — no in-process SDK, no assembly conflicts:
 
-1. **Authentication Flow**:
-   - Certificate-based authentication (CBA) via Azure AD app registration
-   - Connects using `Connect-IPPSSession` (Security & Compliance PowerShell)
-   - Requires Exchange Online Management module 3.9.2+
+1. **PS1 Scripts** (`backend/scripts/`):
+   - `Sync-Activities.ps1` — Connect + Export-ActivityExplorerData with pagination, outputs JSON array
+   - `Get-AuthStatus.ps1` — Checks EXO module, certificate, connectivity, outputs JSON status
+   - `Analyze-Columns.ps1` — Fetches sample data for column analysis
 
-2. **Data Fetching**:
-   - Uses `Export-ActivityExplorerData` to retrieve activity data
-   - Fetches last 30 days of data by default
-   - Processes PSObject results into Activity entities
+2. **PowerShellRunner.cs** — C# wrapper around `System.Diagnostics.Process`:
+   - Runs `pwsh.exe -NoProfile -NonInteractive -File script.ps1`
+   - Reads JSON from stdout, logs stderr, handles timeouts
+   - Pre-flight checks: `CheckPwshAsync()` (is pwsh on PATH?), `CheckScripts()` (do PS1 files exist?)
+
+3. **Authentication**: Certificate-based (CBA) via Azure AD app registration, handled entirely in PS1 scripts
+   - Requires Exchange Online Management module 3.9.2+ and `pwsh.exe` (PowerShell 7+)
 
 ### Database Schema
 
@@ -116,6 +125,7 @@ Before running, update these configurations:
    - `ConnectionStrings:ActivityDatabase` - Update if not using LocalDB
 
 2. **Prerequisites**:
+   - `pwsh.exe` (PowerShell 7+) must be on PATH
    - Exchange Online Management PowerShell module must be installed
    - User must have permissions to read audit logs in Microsoft 365
 
@@ -125,12 +135,13 @@ Before running, update these configurations:
 - `POST /api/activities/sync` - Triggers PowerShell sync from Purview
 - `GET /api/activities/export/csv` - Exports filtered data to CSV
 - `GET /api/activities/statistics` - Returns activity statistics
+- `GET /api/activities/columns` - Analyzes available columns from Purview
 
 ## Development Workflow
 
 1. The database is created/migrated automatically on first run via `context.Database.Migrate()`
 2. Certificate-based authentication connects automatically (no manual input needed)
-3. Frontend expects backend on http://localhost:5000 (CORS configured)
+3. Frontend expects backend on http://localhost:5000 (CORS origins configurable in appsettings.json)
 4. Scalar API Reference available at http://localhost:5000/scalar/v1 for API testing
 5. OpenAPI document at http://localhost:5000/openapi/v1.json
 
@@ -142,6 +153,14 @@ Before running, update these configurations:
 - **Frontend**: CRA → Vite, TypeScript 4.9 → 5.6, MUI 5 → 9, React 18 → 19, date-fns 2 → 4
 - **Package fix**: Aligned NuGet versions with EXO module 3.9.2 DLLs (MSAL 4.74.1, IdentityModel 8.14.0)
 
+### Phase 2: Azure v2 Architecture
+- **PowerShell out-of-process**: Replaced in-process `System.Management.Automation` with `pwsh.exe` + PS1 scripts
+- **PS SDK removed**: 12 NuGet packages removed (~100MB savings), no more assembly version conflicts
+- **Configurable CORS/URL**: Origins from appsettings.json, frontend API URL from env variable
+- **Azure SQL ready**: `EnableRetryOnFailure()` for transient fault handling
+- **Azure Function**: New `ActivityExplorer.SyncFunction` project (timer + HTTP triggers)
+- **Shared sync logic**: `ActivitySyncService` used by both API controller and Azure Function
+
 ### August 2025 Features
 1. **Complete Data Capture**: All 29 fields from Export-ActivityExplorerData are now stored
 2. **Activity Detail Flyout Panel**: Click any activity row to view all fields in a side panel
@@ -151,12 +170,6 @@ Before running, update these configurations:
 
 ## Known Issues & Fixes
 
-### Assembly Version Conflicts with EXO Module
-- **Issue**: `Could not load file or assembly 'Microsoft.Identity.Client'` (or `System.IdentityModel.Tokens.Jwt`) at runtime
-- **Cause**: Exchange Online Management module loads its own DLLs in-process; versions must match backend NuGet packages
-- **Solution**: Check DLL versions in `<EXO module path>/netCore/` and align NuGet packages in ActivityExplorer.Services.csproj
-- **Important**: When upgrading the EXO module, always verify and update matching NuGet package versions
-
 ### Certificate Authentication
 - **Issue**: "Klíč není platný pro použití v zadaném stavu" (The key is not valid for use in the specified state)
 - **Cause**: Certificate was imported with strong private key protection
@@ -165,11 +178,6 @@ Before running, update these configurations:
   $password = ConvertTo-SecureString -String "YourPassword" -Force -AsPlainText
   Import-PfxCertificate -FilePath "path\to\certificate.pfx" -CertStoreLocation Cert:\CurrentUser\My -Password $password -Exportable
   ```
-
-### PowerShell Result Parsing
-- **Fixed**: Export-ActivityExplorerData results are now properly parsed using PSObject properties directly
-- **Location**: PurviewService.cs lines 694-727
-- **Key**: Access properties via `psObject.Properties["PropertyName"]?.Value` not `BaseObject`
 
 ### Database Schema Updates
 - **Process**: Use EF Core Migrations for schema changes:
@@ -185,19 +193,10 @@ Before running, update these configurations:
 - **App ID**: f88ad2f0-dd16-4b4f-ab8b-5061605bd939
 - **Organization**: drozdovo.cz
 
-## Debugging Tools
-
-The project includes a `DebugHelper` class for inspecting PowerShell results:
-```csharp
-// In VS Code Debug Console:
-DebugHelper.InspectPSObject(results[0])
-DebugHelper.AnalyzeExportResult(results[0])
-DebugHelper.ToJson(results[0])
-```
-
 ## Known Limitations
 
 - Certificate-based authentication only (no interactive auth)
-- No automatic scheduled syncing (manual trigger only)
+- Scheduled syncing available via Azure Function (every 6 hours), manual trigger from UI
 - Fetches only last 30 days of data per sync
 - No real-time updates (requires manual refresh)
+- Requires `pwsh.exe` (PowerShell 7+) on PATH for PowerShell integration

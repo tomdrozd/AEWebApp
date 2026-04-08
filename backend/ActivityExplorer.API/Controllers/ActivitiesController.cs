@@ -14,15 +14,18 @@ namespace ActivityExplorer.API.Controllers
     {
         private readonly ActivityContext _context;
         private readonly PurviewService _purviewService;
+        private readonly ActivitySyncService _syncService;
         private readonly ILogger<ActivitiesController> _logger;
-        
+
         public ActivitiesController(
-            ActivityContext context, 
-            PurviewService purviewService, 
+            ActivityContext context,
+            PurviewService purviewService,
+            ActivitySyncService syncService,
             ILogger<ActivitiesController> logger)
         {
             _context = context;
             _purviewService = purviewService;
+            _syncService = syncService;
             _logger = logger;
         }
         
@@ -96,41 +99,21 @@ namespace ActivityExplorer.API.Controllers
             try
             {
                 _logger.LogInformation("Manual sync triggered");
-                
-                // Fetch from Purview
-                var activities = await _purviewService.FetchActivitiesAsync();
-                
-                // Check for duplicates and save to database
-                int newActivitiesCount = 0;
-                foreach (var activity in activities)
+                var result = await _syncService.SyncAsync();
+
+                return Ok(new
                 {
-                    // Check if activity already exists (using RecordIdentity as unique key)
-                    var exists = await _context.Activities.AnyAsync(a => 
-                        a.RecordIdentity == activity.RecordIdentity ||
-                        (a.Timestamp == activity.Timestamp && 
-                         a.UserId == activity.UserId &&
-                         a.Operation == activity.Operation));
-                    
-                    if (!exists)
-                    {
-                        _context.Activities.Add(activity);
-                        newActivitiesCount++;
-                    }
-                }
-                
-                await _context.SaveChangesAsync();
-                
-                return Ok(new { 
-                    message = $"Sync completed. Added {newActivitiesCount} new activities out of {activities.Count} fetched.",
-                    totalFetched = activities.Count,
-                    newActivities = newActivitiesCount
+                    message = result.Message,
+                    totalFetched = result.TotalFetched,
+                    newActivities = result.NewActivities
                 });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Sync failed");
-                return StatusCode(500, new { 
-                    error = "Sync failed", 
+                return StatusCode(500, new
+                {
+                    error = "Sync failed",
                     details = ex.Message,
                     hint = "Make sure you have the Exchange Online Management module installed and proper permissions."
                 });

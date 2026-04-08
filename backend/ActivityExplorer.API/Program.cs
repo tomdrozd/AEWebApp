@@ -9,23 +9,37 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// Add CORS for React frontend
+// Add CORS for React frontend (origins from appsettings.json)
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp",
         policy => policy
-            .WithOrigins("http://localhost:3000")
+            .WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader());
 });
 
-// Add Database Context
+// Add Database Context (EnableRetryOnFailure for Azure SQL transient fault handling)
 builder.Services.AddDbContext<ActivityContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("ActivityDatabase")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("ActivityDatabase"),
+        sqlOptions => sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null)));
 
 // Add Services
 builder.Services.Configure<PurviewSettings>(builder.Configuration.GetSection("Purview"));
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<PowerShellRunner>>();
+    var scriptsPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "scripts");
+    // Normalize the path for reliable resolution
+    scriptsPath = Path.GetFullPath(scriptsPath);
+    return new PowerShellRunner(logger, scriptsPath);
+});
 builder.Services.AddScoped<PurviewService>();
+builder.Services.AddScoped<ActivitySyncService>();
 
 // Add Logging
 builder.Services.AddLogging(config =>

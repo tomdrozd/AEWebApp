@@ -2,6 +2,12 @@ namespace ActivityExplorer.Core.DTOs
 {
     public class AuthStatusDto
     {
+        // Prerequisites (out-of-process checks)
+        public bool IsPwshAvailable { get; set; }
+        public string? PwshVersion { get; set; }
+        public bool AreScriptsFound { get; set; }
+        public List<string> MissingScripts { get; set; } = new List<string>();
+
         public bool IsModuleInstalled { get; set; }
         public string? ModuleVersion { get; set; }
         public string? ModuleInstallCommand { get; set; }
