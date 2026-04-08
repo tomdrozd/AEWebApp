@@ -188,6 +188,33 @@ namespace ActivityExplorer.API.Controllers
             return Ok(statistics);
         }
         
+        [HttpGet("filter-options")]
+        public async Task<IActionResult> GetFilterOptions()
+        {
+            var workloads = await _context.Activities
+                .Where(a => a.Workload != null)
+                .Select(a => a.Workload!)
+                .Distinct()
+                .OrderBy(w => w)
+                .ToListAsync();
+
+            var operations = await _context.Activities
+                .Where(a => a.Operation != null)
+                .Select(a => a.Operation!)
+                .Distinct()
+                .OrderBy(o => o)
+                .ToListAsync();
+
+            var statuses = await _context.Activities
+                .Where(a => a.ResultStatus != null)
+                .Select(a => a.ResultStatus!)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToListAsync();
+
+            return Ok(new { workloads, operations, statuses });
+        }
+
         [HttpGet("columns")]
         public async Task<IActionResult> AnalyzeColumns([FromQuery] int sampleSize = 100)
         {

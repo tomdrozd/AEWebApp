@@ -19,8 +19,23 @@ import {
   Grid,
   AppBar,
   Toolbar,
-  Chip
+  Chip,
+  Autocomplete,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Menu,
+  MenuItem
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -32,7 +47,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: true,
       retry: 1,
-      staleTime: 30_000, // 30s before data is considered stale
+      staleTime: 30_000,
     },
   },
 });
@@ -47,17 +62,41 @@ function ActivityExplorer() {
     pageSize: 50,
     startDate: undefined,
     endDate: undefined,
-    userSearch: ''
+    userSearch: '',
+    workloads: undefined,
+    operations: undefined,
+    resultStatus: undefined
   });
 
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
 
+  // Save filter dialog
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [filterName, setFilterName] = useState('');
+
+  // Saved filters menu
+  const [filtersAnchor, setFiltersAnchor] = useState<null | HTMLElement>(null);
+
   // --- Queries ---
   const activitiesQuery = useQuery({
-    queryKey: ['activities', filter.pageNumber, filter.pageSize, filter.startDate?.toISOString(), filter.endDate?.toISOString(), filter.userSearch],
+    queryKey: ['activities', filter],
     queryFn: () => activityApi.getActivities(filter),
   });
+
+  const filterOptionsQuery = useQuery({
+    queryKey: ['filter-options'],
+    queryFn: () => activityApi.getFilterOptions(),
+    staleTime: 5 * 60_000, // 5 min — these change rarely
+  });
+
+  const savedFiltersQuery = useQuery({
+    queryKey: ['saved-filters'],
+    queryFn: () => activityApi.getSavedFilters(),
+  });
+
+  const filterOptions = filterOptionsQuery.data ?? { workloads: [], operations: [], statuses: [] };
+  const savedFilters = savedFiltersQuery.data ?? [];
 
   // --- Mutations ---
   const syncMutation = useMutation({
@@ -69,6 +108,7 @@ function ActivityExplorer() {
     onSuccess: (result) => {
       setSyncStatus(result.message || 'Sync completed successfully');
       qc.invalidateQueries({ queryKey: ['activities'] });
+      qc.invalidateQueries({ queryKey: ['filter-options'] });
     },
     onError: (error: any) => {
       const errorData = error.response?.data;
@@ -85,14 +125,11 @@ function ActivityExplorer() {
 
   const statusMutation = useMutation({
     mutationFn: () => activityApi.getAuthStatus(),
-    onMutate: () => {
-      setError('');
-    },
+    onMutate: () => { setError(''); },
     onSuccess: (status) => {
       console.log('Auth status:', status);
       let msg = '=== AUTHENTICATION STATUS ===\n\n';
 
-      // pwsh status
       if (!status.isPwshAvailable) {
         msg += '❌ PowerShell (pwsh): NOT FOUND\n';
         msg += '   Install from: https://github.com/PowerShell/PowerShell/releases\n';
@@ -101,7 +138,6 @@ function ActivityExplorer() {
       }
       msg += '\n';
 
-      // Module status
       if (!status.isModuleInstalled) {
         msg += '❌ PowerShell Module: NOT INSTALLED\n';
         msg += `   Install command: ${status.moduleInstallCommand}\n`;
@@ -111,7 +147,6 @@ function ActivityExplorer() {
       }
       msg += '\n';
 
-      // Certificate status
       if (!status.isCertificateFound) {
         msg += '❌ Certificate: NOT FOUND\n';
         if (status.certificateThumbprint) msg += `   Looking for: ${status.certificateThumbprint}\n`;
@@ -123,7 +158,6 @@ function ActivityExplorer() {
       }
       msg += '\n';
 
-      // Configuration status
       if (!status.isConfigurationValid) {
         msg += '❌ Configuration: INCOMPLETE\n';
         status.configurationErrors?.forEach((err: string) => { msg += `   - ${err}\n`; });
@@ -132,7 +166,6 @@ function ActivityExplorer() {
       }
       msg += '\n';
 
-      // Connection status
       msg += '=== CONNECTION TEST ===\n';
       if (status.canConnect === true) {
         msg += '✅ Connection: SUCCESSFUL\n';
@@ -148,23 +181,69 @@ function ActivityExplorer() {
       msg += '\n';
 
       if (status.powerShellVersion) msg += `PowerShell Version: ${status.powerShellVersion}\n`;
-
       if (!status.isModuleInstalled && status.searchedPaths?.length > 0) {
         msg += '\nModule searched in:\n';
         status.searchedPaths.slice(0, 5).forEach((p: string) => { msg += `   ${p}\n`; });
       }
-
       if (status.recommendations?.length > 0) {
         msg += '\n=== RECOMMENDATIONS ===\n';
         status.recommendations.forEach((rec: string) => { msg += `• ${rec}\n`; });
       }
-
       setSyncStatus(msg);
     },
-    onError: () => {
-      setError('Failed to check authentication status');
+    onError: () => { setError('Failed to check authentication status'); },
+  });
+
+  const saveFilterMutation = useMutation({
+    mutationFn: (name: string) => activityApi.saveFilter(name, filter),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['saved-filters'] });
+      setSaveDialogOpen(false);
+      setFilterName('');
     },
   });
+
+  const deleteFilterMutation = useMutation({
+    mutationFn: (id: number) => activityApi.deleteFilter(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['saved-filters'] });
+    },
+  });
+
+  const loadSavedFilter = (filterJson: string) => {
+    try {
+      const parsed = JSON.parse(filterJson);
+      setFilter({
+        pageNumber: 1,
+        pageSize: filter.pageSize,
+        startDate: parsed.startDate ? new Date(parsed.startDate) : undefined,
+        endDate: parsed.endDate ? new Date(parsed.endDate) : undefined,
+        userSearch: parsed.userSearch || '',
+        workloads: parsed.workloads || undefined,
+        operations: parsed.operations || undefined,
+        resultStatus: parsed.resultStatus || undefined,
+      });
+      setFiltersAnchor(null);
+    } catch (e) {
+      console.error('Failed to parse saved filter:', e);
+    }
+  };
+
+  const clearFilters = () => {
+    setFilter({
+      ...filter,
+      pageNumber: 1,
+      startDate: undefined,
+      endDate: undefined,
+      userSearch: '',
+      workloads: undefined,
+      operations: undefined,
+      resultStatus: undefined,
+    });
+  };
+
+  const hasActiveFilters = !!(filter.startDate || filter.endDate || filter.userSearch ||
+    filter.workloads?.length || filter.operations?.length || filter.resultStatus);
 
   const handlePageChange = (_event: unknown, newPage: number) => {
     setFilter({ ...filter, pageNumber: newPage + 1 });
@@ -177,11 +256,6 @@ function ActivityExplorer() {
   const formatDate = (date: Date | string) => {
     if (!date) return '-';
     return new Date(date).toLocaleString();
-  };
-
-  const handleActivityClick = (activity: Activity) => {
-    setSelectedActivity(activity);
-    setDetailPanelOpen(true);
   };
 
   const loading = activitiesQuery.isLoading || syncMutation.isPending || statusMutation.isPending;
@@ -207,37 +281,102 @@ function ActivityExplorer() {
                   <DatePicker
                     label="Start Date"
                     value={filter.startDate || null}
-                    onChange={(newValue) => setFilter({ ...filter, startDate: newValue || undefined })}
-                    slotProps={{ textField: { fullWidth: true } }}
+                    onChange={(newValue) => setFilter({ ...filter, pageNumber: 1, startDate: newValue || undefined })}
+                    slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>
                   <DatePicker
                     label="End Date"
                     value={filter.endDate || null}
-                    onChange={(newValue) => setFilter({ ...filter, endDate: newValue || undefined })}
-                    slotProps={{ textField: { fullWidth: true } }}
+                    onChange={(newValue) => setFilter({ ...filter, pageNumber: 1, endDate: newValue || undefined })}
+                    slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     fullWidth
+                    size="small"
                     label="Search User"
                     value={filter.userSearch || ''}
-                    onChange={(e) => setFilter({ ...filter, userSearch: e.target.value })}
+                    onChange={(e) => setFilter({ ...filter, pageNumber: 1, userSearch: e.target.value })}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, md: 3 }}>
-                  <Button
-                    variant="outlined"
-                    onClick={() => setFilter({ ...filter, startDate: undefined, endDate: undefined, userSearch: '' })}
-                    fullWidth
-                  >
-                    Clear Filters
-                  </Button>
+                  <Autocomplete
+                    multiple
+                    size="small"
+                    options={filterOptions.workloads}
+                    value={filter.workloads || []}
+                    onChange={(_, newValue) => setFilter({ ...filter, pageNumber: 1, workloads: newValue.length ? newValue : undefined })}
+                    renderInput={(params) => <TextField {...params} label="Workload" />}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <Autocomplete
+                    multiple
+                    size="small"
+                    options={filterOptions.operations}
+                    value={filter.operations || []}
+                    onChange={(_, newValue) => setFilter({ ...filter, pageNumber: 1, operations: newValue.length ? newValue : undefined })}
+                    renderInput={(params) => <TextField {...params} label="Operation" />}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <Autocomplete
+                    size="small"
+                    options={filterOptions.statuses}
+                    value={filter.resultStatus || null}
+                    onChange={(_, newValue) => setFilter({ ...filter, pageNumber: 1, resultStatus: newValue || undefined })}
+                    renderInput={(params) => <TextField {...params} label="Status" />}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 3 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button variant="outlined" onClick={clearFilters} disabled={!hasActiveFilters} fullWidth>
+                      Clear Filters
+                    </Button>
+                    <IconButton
+                      color="primary"
+                      onClick={() => setSaveDialogOpen(true)}
+                      disabled={!hasActiveFilters}
+                      title="Save current filter"
+                    >
+                      <BookmarkBorderIcon />
+                    </IconButton>
+                    <IconButton
+                      color="primary"
+                      onClick={(e) => setFiltersAnchor(e.currentTarget)}
+                      disabled={savedFilters.length === 0}
+                      title="Load saved filter"
+                    >
+                      <BookmarkIcon />
+                    </IconButton>
+                  </Box>
                 </Grid>
               </Grid>
             </Paper>
+
+            {/* Saved Filters Menu */}
+            <Menu
+              anchorEl={filtersAnchor}
+              open={Boolean(filtersAnchor)}
+              onClose={() => setFiltersAnchor(null)}
+            >
+              {savedFilters.map((sf) => (
+                <MenuItem key={sf.id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Typography onClick={() => loadSavedFilter(sf.filterJson)} sx={{ flexGrow: 1, cursor: 'pointer' }}>
+                    {sf.name}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); deleteFilterMutation.mutate(sf.id); }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </MenuItem>
+              ))}
+            </Menu>
 
             {/* Action Buttons */}
             <Box sx={{ mb: 2 }}>
@@ -324,7 +463,10 @@ function ActivityExplorer() {
                         <TableRow
                           key={activity.id}
                           hover
-                          onClick={() => handleActivityClick(activity)}
+                          onClick={() => {
+                            setSelectedActivity(activity);
+                            setDetailPanelOpen(true);
+                          }}
                           sx={{ cursor: 'pointer' }}
                         >
                           <TableCell>{formatDate(activity.timestamp)}</TableCell>
@@ -365,6 +507,31 @@ function ActivityExplorer() {
         open={detailPanelOpen}
         onClose={() => setDetailPanelOpen(false)}
       />
+
+      {/* Save Filter Dialog */}
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
+        <DialogTitle>Save Current Filter</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Filter Name"
+            value={filterName}
+            onChange={(e) => setFilterName(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={() => saveFilterMutation.mutate(filterName)}
+            disabled={!filterName.trim() || saveFilterMutation.isPending}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
     </LocalizationProvider>
   );
 }
