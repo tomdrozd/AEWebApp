@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using ActivityExplorer.Data;
 using ActivityExplorer.Services;
 
@@ -6,8 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
 // Add CORS for React frontend
 builder.Services.AddCors(options =>
@@ -39,8 +39,8 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseCors("AllowReactApp");
@@ -66,6 +66,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 Console.WriteLine($"API is running on: {builder.Configuration["Kestrel:Endpoints:Http:Url"] ?? "http://localhost:5000"}");
-Console.WriteLine("Swagger UI available at: /swagger");
+Console.WriteLine("OpenAPI document at: /openapi/v1.json");
+Console.WriteLine("Scalar API Reference at: /scalar/v1");
 
 app.Run();
