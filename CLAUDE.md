@@ -85,8 +85,9 @@ The backend follows a layered architecture with clear separation of concerns:
 
 Single-page application built with Vite and Material-UI 9:
 
-- **src/App.tsx** - Main component with table, filtering, and sync functionality
+- **src/App.tsx** - Main component with table, filtering, sync, and saved filters
 - **src/services/api.ts** - API service layer using axios
+- Uses TanStack Query for server state (caching, auto-refetch, mutations)
 - **src/components/ActivityDetailPanel.tsx** - Detail flyout panel
 - Uses MUI 9 (Grid with `size` prop, Drawer with `slotProps`), date-fns 4
 - Bundled with Vite (replaced CRA)
@@ -131,11 +132,15 @@ Before running, update these configurations:
 
 ## API Endpoints
 
-- `GET /api/activities` - Paginated activity list with filtering
+- `GET /api/activities` - Paginated activity list with filtering (workloads, operations, status, user, dates)
 - `POST /api/activities/sync` - Triggers PowerShell sync from Purview
 - `GET /api/activities/export/csv` - Exports filtered data to CSV
 - `GET /api/activities/statistics` - Returns activity statistics
+- `GET /api/activities/filter-options` - Returns distinct workloads, operations, statuses for filter dropdowns
 - `GET /api/activities/columns` - Analyzes available columns from Purview
+- `GET /api/filters` - List saved filters
+- `POST /api/filters` - Save a filter preset
+- `DELETE /api/filters/{id}` - Delete a saved filter
 
 ## Development Workflow
 
@@ -160,6 +165,9 @@ Before running, update these configurations:
 - **Azure SQL ready**: `EnableRetryOnFailure()` for transient fault handling
 - **Azure Function**: New `ActivityExplorer.SyncFunction` project (timer + HTTP triggers)
 - **Shared sync logic**: `ActivitySyncService` used by both API controller and Azure Function
+- **TanStack Query**: Frontend server state management with caching, auto-refetch, mutations
+- **Saved Filters**: CRUD API + UI for saving/loading filter presets (workload, operation, status, user, dates)
+- **Serilog**: Structured logging to console + rolling files (`logs/activity-explorer-*.log`, 14 day retention)
 
 ### August 2025 Features
 1. **Complete Data Capture**: All 29 fields from Export-ActivityExplorerData are now stored
