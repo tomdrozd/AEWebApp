@@ -16,4 +16,8 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ActivityExplorer.Tests" />
+  </ItemGroup>
+
 </Project>

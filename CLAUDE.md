@@ -24,6 +24,10 @@ dotnet build ActivityExplorer.sln
 cd backend/ActivityExplorer.API
 dotnet ef migrations add MigrationName -p ../ActivityExplorer.Data -s .
 dotnet ef database update
+
+# Run tests
+cd backend
+dotnet test ActivityExplorer.Tests
 ```
 
 ### Frontend Commands
@@ -168,6 +172,7 @@ Before running, update these configurations:
 - **TanStack Query**: Frontend server state management with caching, auto-refetch, mutations
 - **Saved Filters**: CRUD API + UI for saving/loading filter presets (workload, operation, status, user, dates)
 - **Serilog**: Structured logging to console + rolling files (`logs/activity-explorer-*.log`, 14 day retention)
+- **Tests**: 36 tests (xUnit + FluentAssertions + Moq) — PowerShellRunner, PurviewService mapping, ActivitySyncService dedup, Controllers
 
 ### August 2025 Features
 1. **Complete Data Capture**: All 29 fields from Export-ActivityExplorerData are now stored

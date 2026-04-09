@@ -113,12 +113,12 @@ namespace ActivityExplorer.Services
             return status;
         }
 
-        public async Task<List<Activity>> FetchActivitiesAsync()
+        public virtual async Task<List<Activity>> FetchActivitiesAsync()
         {
             return await FetchActivitiesAsync(null, null, null, null);
         }
 
-        public async Task<List<Activity>> FetchActivitiesAsync(
+        public virtual async Task<List<Activity>> FetchActivitiesAsync(
             DateTime? startDate = null,
             DateTime? endDate = null,
             string? workloadFilter = null,
@@ -205,7 +205,7 @@ namespace ActivityExplorer.Services
             status.IsConfigurationValid = status.ConfigurationErrors.Count == 0;
         }
 
-        private Activity MapToActivity(Dictionary<string, object> data)
+        internal Activity MapToActivity(Dictionary<string, object> data)
         {
             var activity = new Activity
             {
